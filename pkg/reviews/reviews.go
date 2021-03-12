@@ -12,11 +12,10 @@ import (
 )
 
 const (
-	initialRequest   = `f.req=%5B%5B%5B%22UsvDTd%22%2C%22%5Bnull%2Cnull%2C%5B2%2C{{sort}}%2C%5B{{numberOfReviewsPerRequest}}%2Cnull%2Cnull%5D%2Cnull%2C%5B%5D%5D%2C%5B%5C%22{{appId}}%5C%22%2C7%5D%5D%22%2Cnull%2C%22generic%22%5D%5D%5D`
-	paginatedRequest = `f.req=%5B%5B%5B%22UsvDTd%22%2C%22%5Bnull%2Cnull%2C%5B2%2C{{sort}}%2C%5B{{numberOfReviewsPerRequest}}%2Cnull%2C%5C%22{{withToken}}%5C%22%5D%2Cnull%2C%5B%5D%5D%2C%5B%5C%22{{appId}}%5C%22%2C7%5D%5D%22%2Cnull%2C%22generic%22%5D%5D%5D`
+	initialRequest               = `f.req=%5B%5B%5B%22UsvDTd%22%2C%22%5Bnull%2Cnull%2C%5B2%2C{{sort}}%2C%5B{{maxNumberOfReviewsPerRequest}}%2Cnull%2Cnull%5D%2Cnull%2C%5B%5D%5D%2C%5B%5C%22{{appId}}%5C%22%2C7%5D%5D%22%2Cnull%2C%22generic%22%5D%5D%5D`
+	paginatedRequest             = `f.req=%5B%5B%5B%22UsvDTd%22%2C%22%5Bnull%2Cnull%2C%5B2%2C{{sort}}%2C%5B{{maxNumberOfReviewsPerRequest}}%2Cnull%2C%5C%22{{withToken}}%5C%22%5D%2Cnull%2C%5B%5D%5D%2C%5B%5C%22{{appId}}%5C%22%2C7%5D%5D%22%2Cnull%2C%22generic%22%5D%5D%5D`
+	maxNumberOfReviewsPerRequest = 150
 )
-
-var numberOfReviewsPerRequest = 40
 
 // Options of reviews
 type Options struct {
@@ -54,13 +53,12 @@ func (r *Review) URL(appID string) string {
 type Reviews struct {
 	appID   string
 	options *Options
-	Results Results
 }
 
 // New return similar list instance
 func New(appID string, options Options) *Reviews {
 	if options.Number == 0 {
-		options.Number = numberOfReviewsPerRequest
+		options.Number = maxNumberOfReviewsPerRequest
 	}
 	if options.Sorting == 0 {
 		options.Sorting = store.SortHelpfulness
@@ -91,50 +89,38 @@ func (reviews *Reviews) batchexecute(payload string) ([]Review, string, error) {
 	return results, nextToken, nil
 }
 
-// Run reviews scraping
-func (reviews *Reviews) Run() error {
-	if numberOfReviewsPerRequest > reviews.options.Number {
-		numberOfReviewsPerRequest = reviews.options.Number
+// RunPaging 分頁查詢
+// resultFunc 如返回 true ,則不再獲取下一頁
+func (reviews *Reviews) RunPaging(resultFunc func([]Review) (stop bool)) error {
+
+	if reviews.options.Number > maxNumberOfReviewsPerRequest {
+		reviews.options.Number = maxNumberOfReviewsPerRequest
 	}
 
 	r := strings.NewReplacer("{{sort}}", strconv.Itoa(int(reviews.options.Sorting)),
-		"{{numberOfReviewsPerRequest}}", strconv.Itoa(numberOfReviewsPerRequest),
-		"{{appId}}", string(reviews.appID),
+		"{{maxNumberOfReviewsPerRequest}}", strconv.Itoa(reviews.options.Number),
+		"{{appId}}", reviews.appID,
 	)
 	payload := r.Replace(initialRequest)
+	for {
+		results, token, err := reviews.batchexecute(payload)
+		if err != nil {
+			return err
+		}
 
-	results, token, err := reviews.batchexecute(payload)
-	if err != nil {
-		return err
-	}
-
-	if len(results) > reviews.options.Number {
-		reviews.Results.Append(results[:reviews.options.Number]...)
-	} else {
-		reviews.Results.Append(results...)
-	}
-
-	for len(reviews.Results) != reviews.options.Number {
-		r := strings.NewReplacer("{{sort}}", strconv.Itoa(int(reviews.options.Sorting)),
-			"{{numberOfReviewsPerRequest}}", strconv.Itoa(numberOfReviewsPerRequest),
+		if resultFunc(results) {
+			return nil
+		}
+		if token == "" || len(results) == 0 {
+			return nil
+		}
+		r = strings.NewReplacer("{{sort}}", strconv.Itoa(int(reviews.options.Sorting)),
+			"{{maxNumberOfReviewsPerRequest}}", strconv.Itoa(reviews.options.Number),
 			"{{withToken}}", token,
-			"{{appId}}", string(reviews.appID),
+			"{{appId}}", reviews.appID,
 		)
-		payload := r.Replace(paginatedRequest)
-
-		results, token, err = reviews.batchexecute(payload)
-
-		if len(results) == 0 || err != nil {
-			break
-		}
-
-		if len(reviews.Results)+len(results) > reviews.options.Number {
-			reviews.Results.Append(results[:reviews.options.Number-len(reviews.Results)]...)
-		} else {
-			reviews.Results.Append(results...)
-		}
+		payload = r.Replace(paginatedRequest)
 	}
-	return nil
 }
 
 // Parse app review
