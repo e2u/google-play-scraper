@@ -69,7 +69,7 @@ func New(appID string, options Options) *Reviews {
 	}
 }
 
-func (reviews *Reviews) batchexecute(payload string) ([]Review, string, error) {
+func (reviews *Reviews) batchexecute(payload string) ([]*Review, string, error) {
 	js, err := util.BatchExecute(reviews.options.Country, reviews.options.Language, payload)
 	if err != nil {
 		return nil, "", err
@@ -77,12 +77,12 @@ func (reviews *Reviews) batchexecute(payload string) ([]Review, string, error) {
 
 	nextToken := util.GetJSONValue(js, "1.1")
 
-	var results []Review
+	var results []*Review
 	rev := util.GetJSONArray(js, "0")
 	for _, review := range rev {
 		result := Parse(review.String())
 		if result != nil {
-			results = append(results, *result)
+			results = append(results, result)
 		}
 	}
 
@@ -91,7 +91,7 @@ func (reviews *Reviews) batchexecute(payload string) ([]Review, string, error) {
 
 // RunPaging 分頁查詢
 // resultFunc 如返回 true ,則不再獲取下一頁
-func (reviews *Reviews) RunPaging(resultFunc func([]Review) (stop bool)) error {
+func (reviews *Reviews) RunPaging(resultFunc func([]*Review) (stop bool)) error {
 
 	if reviews.options.Number > maxNumberOfReviewsPerRequest {
 		reviews.options.Number = maxNumberOfReviewsPerRequest
