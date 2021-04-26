@@ -69,7 +69,7 @@ func New(appID string, options Options) *Reviews {
 	}
 }
 
-func (reviews *Reviews) batchexecute(payload string) ([]*Review, string, error) {
+func (reviews *Reviews) batchExecute(payload string) ([]*Review, string, error) {
 	js, err := util.BatchExecute(reviews.options.Country, reviews.options.Language, payload)
 	if err != nil {
 		return nil, "", err
@@ -103,7 +103,7 @@ func (reviews *Reviews) RunPaging(resultFunc func([]*Review) (stop bool)) error 
 	)
 	payload := r.Replace(initialRequest)
 	for {
-		results, token, err := reviews.batchexecute(payload)
+		results, token, err := reviews.batchExecute(payload)
 		if err != nil {
 			return err
 		}

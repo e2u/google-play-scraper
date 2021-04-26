@@ -51,14 +51,13 @@ func (scraper *Scraper) initialRequest() ([]app.App, string, error) {
 	return scraper.parseResult(data["ds:3"], "0.1.0.0.0"), util.GetJSONValue(data["ds:3"], "0.1.0.0.7.1"), nil
 }
 
-func (scraper *Scraper) batchexecute(token string) ([]app.App, string, error) {
+func (scraper *Scraper) batchExecute(token string) ([]app.App, string, error) {
 	payload := strings.Replace("f.req=%5B%5B%5B%22qnKhOb%22%2C%22%5B%5Bnull%2C%5B%5B10%2C%5B10%2C50%5D%5D%2Ctrue%2Cnull%2C%5B96%2C27%2C4%2C8%2C57%2C30%2C110%2C79%2C11%2C16%2C49%2C1%2C3%2C9%2C12%2C104%2C55%2C56%2C51%2C10%2C34%2C77%5D%5D%2Cnull%2C%5C%22{{token}}%5C%22%5D%5D%22%2Cnull%2C%22generic%22%5D%5D%5D", "{{token}}", token, 1)
 
 	js, err := util.BatchExecute(scraper.options.Country, scraper.options.Language, payload)
 	if err != nil {
 		return nil, "", err
 	}
-
 	nextToken := util.GetJSONValue(js, "0.0.7.1")
 	return scraper.parseResult(js, "0.0.0"), nextToken, nil
 }
@@ -79,7 +78,7 @@ func (scraper *Scraper) Run() error {
 	}
 
 	for len(scraper.Results) != scraper.options.Number {
-		results, token, err = scraper.batchexecute(token)
+		results, token, err = scraper.batchExecute(token)
 
 		if len(results) == 0 || err != nil {
 			break
